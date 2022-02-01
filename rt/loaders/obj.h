@@ -9,10 +9,12 @@ namespace rt {
 
 	class Group;
 	class Material;
+	class Texture;
 
 	typedef std::map<std::string, Material*> MatLib;
+	typedef std::map<std::string, Texture*> TexLib;
 
-	void loadOBJ(Group* dest, const std::string& path, const std::string& filename, MatLib* inmats = nullptr);
+	void loadOBJ(Group* dest, const std::string& path, const std::string& filename, MatLib* inmats = nullptr, TexLib* intexs  = nullptr);
 	void loadOBJMat(MatLib* dest, const std::string& path, const std::string& filename);
 
 }

@@ -132,9 +132,10 @@ namespace rt {
             Ray second_ray = Ray(intPt + sample_refl.direction.normalize() * 1e-5, sample_refl.direction.normalize());
             total_intensity = total_intensity + sample_refl.reflectance * get_rec_Radiance(second_ray, depth + 1, total_intensity);
 
+
         }
         RGBColor fog = RGBColor::rep(0);
-        //if ((intPt - ray.o).y > -5) fog = powf(0.7, (intPt - ray.o).y + 3) * FogAmount(ray.o, intPt) * RGBColor::rep(.5f);
+        //if ((intPt - ray.o).y > -3) fog = powf(0.7, (intPt - ray.o).y + 3) * FogAmount(ray.o, intPt) * RGBColor::rep(.5f);
         return (total_intensity + fog ).clamp();
 
     }

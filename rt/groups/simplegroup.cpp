@@ -19,15 +19,16 @@ Intersection SimpleGroup::intersect( const Ray& ray, float previousBestDistance)
     intersectionm.distance = FLT_MAX;
     float disthit = FLT_MAX;
     for (auto primitive : this->primitives) {
-        Intersection intersection = primitive->intersect(ray, previousBestDistance);
+        Intersection intersection = primitive->intersect(ray, disthit);
         float intdisthit = intersection.distance;
         if(intersection){
             if (intdisthit < disthit) {
                 intersectionm = intersection;
                 disthit = intdisthit;
             }
-            if(disthit == FLT_MAX && intersection.solid != nullptr) intersectionm = intersection;
+            if (disthit == FLT_MAX && intersection.solid != nullptr) intersectionm = intersection;
         }
+        
     }
     return intersectionm;
 

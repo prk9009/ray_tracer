@@ -4,6 +4,7 @@
 #include <rt/cameras/camera.h>
 #include <rt/integrators/integrator.h>
 #include <core/random.h>
+#include <omp.h>
 
 #include <rt/ray.h>
 #include <iostream>
@@ -21,30 +22,40 @@ float randd() {
 void Renderer::render(Image& img) {
     cam;
     integrator;
-	img.clear(RGBColor(0.0, 0.0, 0.0));
-	int height = img.height();
-	int width = img.width();
+    img.clear(RGBColor(0.0, 0.0, 0.0));
+    int height = img.height();
+    int width = img.width();
     float r_samp = 0.0;
     if (samples > 1) {
         r_samp = 1.0;
     }
     // added the sample functionality where we shoot more rays from the same pixel with slight changes to position of the ray
-	for (int i = 0; i < width; i++) {
-		for (int j = 0; j < height; j++) {
-            RGBColor sumColor = RGBColor::rep(0.0f);
-            for(int sno = 0;sno<samples;sno++){
-			    // convert the pixel to the range(-1, 1)(the required image plane dimensions)
-			    // the y axis flipped as explained in the tutorial sheet
-                // when samples>1 then r_samp = 1 and randd function will add a random number between (-0.5, 0.5)
-                // std::cout << (randd() * r_samp);
-			    float pi_x = (float(i + randd() * r_samp)) / float(width) * 2.0 - 1.0;
-                float pi_y = 1.0 - (float(j + randd() * r_samp)) / float(height) * 2.0;
-                // std::cout << (i + 1) <<" "<< (j + 1) << std::endl;
-                sumColor = sumColor + integrator->getRadiance(cam->getPrimaryRay(pi_x, pi_y));
+#pragma omp parallel for
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
+            if (samples == 1) {
+                float pi_x = (float(i)) / float(width) * 2.0 - 1.0;
+                float pi_y = 1.0 - (float(j)) / float(height) * 2.0;
+                img(i, j) = integrator->getRadiance(cam->getPrimaryRay(pi_x, pi_y));
             }
-            img(i, j) = sumColor / samples;
-		}
-	}
+            else {
+                RGBColor sumColor = RGBColor::rep(0.0f);
+                for (int sno = 0; sno < samples; sno++) {
+
+                    // convert the pixel to the range(-1, 1)(the required image plane dimensions)
+                    // the y axis flipped as explained in the tutorial sheet
+                    // when samples>1 then r_samp = 1 and randd function will add a random number between (-0.5, 0.5)
+                    // std::cout << (randd() * r_samp);
+                    float pi_x = (float(i + randd() * r_samp)) / float(width) * 2.0 - 1.0;
+                    float pi_y = 1.0 - (float(j + randd() * r_samp)) / float(height) * 2.0;
+
+                    sumColor = sumColor + integrator->getRadiance(cam->getPrimaryRay(pi_x, pi_y));
+                }
+                img(i, j) = (sumColor / samples);
+            }
+        }
+        //std::cout << i<<' ';
+    }
 }
 }
 

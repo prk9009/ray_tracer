@@ -3,6 +3,7 @@
 #include <core/interpolate.h>
 #include <core/assert.h>
 
+#define H 0.001
 
 namespace rt {
 
@@ -21,49 +22,72 @@ namespace rt {
         image(image), bh(bh), i(i)
     {    }
 
-    float ImageTexture::borderHandle(float cord) {
+    Float4 ImageTexture::borderHandle(float x, uint max) {
+        float low, lowWeight, high, highWeight;
+        float px, pxfrac;
         switch (bh) {
         case(ImageTexture::CLAMP):
-            return std::fmax(0, std::fmin(cord, 1));
+             px = (x - (0.5f / max)) * float(max);
+             pxfrac = absfractional(px);
+            if (px < 0.0f) low = 0;
+            else if (px >= max - 1) low = max - 1;
+            else low = uint(px);
+            lowWeight = 1.0f - pxfrac;
+            px = px + 1.0f;
+            if (px < 0.0f) high = 0;
+            else if (px >= max - 1) high = max - 1;
+            else high = uint(px);
+            highWeight = pxfrac;
+            break;
         case(ImageTexture::REPEAT):
-            if (cord > 0) return std::fmod(cord, 1);
-            else {
-                cord = -cord;
-                return 1 - std::fmod(cord, 1);
-            }
+             px = absfractional(x - 0.5f / max) * float(max);
+             pxfrac = absfractional(px);
+            low = uint(px);
+            lowWeight = 1.0f - pxfrac;
+            high = uint(px) + 1;
+            highWeight = pxfrac;
+            if (high == max) high = 0;
+            break;
         case(ImageTexture::MIRROR):
-            if (cord < 0){
-                cord = -cord;
-                if (int(floor(cord)) % 2 == 0) return std::fmod(cord, 1);
-                else return 1-std::fmod(cord, 1);
-            }
-            else {
-                if (int(floor(cord)) % 2 == 0) return  std::fmod(cord, 1);
-                else return 1-std::fmod(cord, 1);
-            }
+             px = absfractional((x - (0.5f / max))/2.0f) *2.0f* float(max);
+             pxfrac = absfractional(px);
+            low = uint(px);
+            lowWeight = 1.0f - pxfrac;
+            high = uint(px) + 1;
+            highWeight = pxfrac;
+            if (low>= max) low = 2 * max - low - 1;
+            if (high == 2 * max) high = 0;
+            else if (high >= max) high = 2 * max - high - 1;
+            break;
         }
+     
+        return Float4(low, lowWeight, high, highWeight);
     }
      
     RGBColor ImageTexture::getColor(const Point& coord) {
-        float x = coord.x ;
-        float y = coord.y;
-        float x0, y0, x1, y1;
-        //std::cout << filename;
-        if (i == ImageTexture::NEAREST) { 
-            return image(min(int(floor(borderHandle(x) * (image.width()))), int(image.width() - 1)) , min(int(floor(borderHandle(y) * (image.height()))), int(image.height() - 1)));
+        Float4 valx = borderHandle(coord.x, image.width());
+        Float4 valy = borderHandle(coord.y, image.height());;
+        
+        if (i == InterpolationType::NEAREST)
+        {
+            uint x = valx.y > valx.w ? valx.x : valx.z;
+            uint y = valy.y > valy.w ? valy.x : valy.z;
+            return image(x, y); 
         }
-        else {
-            x0 = borderHandle(x) * (image.width()-1);
-            y0 = borderHandle(y) * (image.height()-1);
-            x1 = x0 >= image.width() - 1 ? 0 : x0+1;
-            y1 = y0 >= image.width() - 1 ? 0 : y0+1;
-            RGBColor c00, c11, c10, c01;
-            c00 = image(floor(x0), floor(y0));
-            c11 = image(floor(x1), floor(y1));
-            c10 = image(floor(x1), floor(y0));
-            c01 = image(floor(x0), floor(y1));
+        if (i == InterpolationType::BILINEAR)
+        {
+            RGBColor ll = image(valx.x, valy.x);
+            RGBColor lh = image(valx.x, valy.z);
+            RGBColor hl = image(valx.z, valy.x);
+            RGBColor hh = image(valx.z, valy.z);
 
-            return(lerp2d(c00, c10, c01, c11, x0 - floor(x0), y0 - floor(y0)));
+            return ll * valx.y * valy.y +
+                   lh * valx.y * valy.w +
+                   hl * valx.w * valy.y +
+                   hh * valx.w * valy.w;
+
+
+
 
         }
 
@@ -73,11 +97,17 @@ namespace rt {
     }
 
     RGBColor ImageTexture::getColorDX(const Point& coord) {
-        /* TODO */ NOT_IMPLEMENTED;
+        Point p1 = Point(coord.x, coord.y, 0.0f);
+        Point p2 = Point(coord.x + (1.0f / image.width()), coord.y, 0.0f);
+        RGBColor first = getColor(p1);
+        RGBColor second = getColor(p2);
+        return  second- first;
     }
 
     RGBColor ImageTexture::getColorDY(const Point& coord) {
-        /* TODO */ NOT_IMPLEMENTED;
+        RGBColor first = getColor(Point(coord.x, coord.y, 0.0f));
+        RGBColor second = getColor(Point(coord.x, coord.y + (1.0f / image.height()), 0.0f));
+        return second- first;
     }
 
 }

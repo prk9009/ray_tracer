@@ -7,9 +7,12 @@
 #include <rt/loaders/obj.h>
 #include <rt/groups/group.h>
 #include <rt/solids/triangle.h>
+
+#include <rt/materials/dummy.h>
 #include <string>
 #include <fstream>
 #include <set>
+#include <rt/primmod/bmap.h>
 
 #ifndef DISABLE_COORDMAPPERS
 #include <rt/coordmappers/world.h>
@@ -254,12 +257,18 @@ namespace rt {
     }
 
 
-    void loadOBJ(Group* dest, const std::string& path, const std::string& filename, MatLib* inmats) {
+    void loadOBJ(Group* dest, const std::string& path, const std::string& filename, MatLib* inmats, TexLib* intexs) {
         MatLib* matlib;
+        TexLib* texlib;
         if (inmats)
             matlib = inmats;
         else
             matlib = new MatLib;
+
+        if (intexs)
+            texlib = intexs;
+        else
+            texlib = new TexLib;
 
         std::vector<std::string> matFiles;
 
@@ -268,7 +277,8 @@ namespace rt {
         std::vector<Float2> texcoord;
 
         std::set<Instruction> unsupportedEncounters;
-        Material* material = nullptr;
+        Material* material = new DummyMaterial();
+        Texture* bumptex = nullptr;
 
         FileLine fileline;
         fileline.open(path + filename);
@@ -276,6 +286,7 @@ namespace rt {
         size_t numfaces = 0;
         size_t lineIdx = 0;
         while (!fileline.eof()) {
+            std::string matname;
             fileline.nextLine();
             fileline.removeComments();
             Instruction i = fileline.fetchInstruction();
@@ -332,10 +343,14 @@ namespace rt {
                     do {
                         CoordMapper* mapper = nullptr;
                         bool skipnormal = true;
+                        bool dskipbump = false;
 #ifndef DISABLE_COORDMAPPERS
-                        
+
                         bool skiptex = v[0].tidx == 0 || v[1].tidx == 0 || v[2].tidx == 0;
-                        if (skiptex) {
+                        if (dskipbump) {
+                            mapper = nullptr;
+                        }
+                        else if (skiptex) {
                             mapper = new WorldMapper();
                         }
                         else if (skipnormal) {
@@ -352,24 +367,40 @@ namespace rt {
                         }
 #endif
 
-                        Solid* t;
-#ifdef DISABLE_SMOOTH_TRIANGLE
+                        //Solid* t;
                         
+                        //std::string matname = fileline.fetchString();
+                        float bumbscale = 0.005f;
+
+
+#ifdef DISABLE_SMOOTH_TRIANGLE
+
 #else
                         skipnormal = v[0].nidx == 0 || v[1].nidx == 0 || v[2].nidx == 0;
+
+
+
 #endif
-                        if (skipnormal) {
-                            t = new Triangle(Point(vertices[v[0].vidx]), Point(vertices[v[1].vidx]), Point(vertices[v[2].vidx]), mapper, material);
+                        if (skipnormal || (matname.find("lotus") != std::string::npos) || (matname.find("Boat") != std::string::npos)
+                            || (matname.find("Bird") != std::string::npos)) {
+                            Triangle *t = new Triangle(Point(vertices[v[0].vidx]), Point(vertices[v[1].vidx]), Point(vertices[v[2].vidx]), mapper, material);
+                            if (bumptex != nullptr) {
+                                dest->add(new BumpMapper(t, bumptex, Point(vertices[v[0].vidx]), Point(vertices[v[1].vidx]), Point(vertices[v[2].vidx]), bumbscale));
+                            }
+                            else dest->add(t);
                         }
                         else {
 #ifndef DISABLE_SMOOTH_TRIANGLE
-                            t = new SmoothTriangle(
+                            Solid* t = new SmoothTriangle(
                                 Point(vertices[v[0].vidx]), Point(vertices[v[1].vidx]), Point(vertices[v[2].vidx]),
                                 Vector(normals[v[0].nidx]), Vector(normals[v[1].nidx]), Vector(normals[v[2].nidx]),
                                 mapper, material);
+
+                            dest->add(t);
 #endif
                         }
-                        dest->add(t);
+
+                        
 
                         v[1] = v[2];
                         READ_VERTEX(2, false)
@@ -378,19 +409,29 @@ namespace rt {
             }
             case Obj_MaterialLibrary: {
 #ifndef DISABLE_MATERIALS
-                std::string libname = fileline.fetchString();
-                loadOBJMat(matlib, path, libname);
+                matname = fileline.fetchString();
+                loadOBJMat(matlib, path, matname);
 #endif
                 break;
             }
             case Obj_Material: {
 #ifndef DISABLE_MATERIALS
-                std::string matname = fileline.fetchString();
+                matname = fileline.fetchString();
+                std::cout << matname;
                 MatLib::iterator i = matlib->find(matname);
                 if (i != matlib->end())
                     material = i->second;
                 else
                     material = nullptr;
+
+                TexLib::iterator i1 = texlib->find(matname);
+                if (i1 != texlib->end())
+                    bumptex = i1->second;
+                else
+                    bumptex = nullptr;
+
+                
+                
 #endif
                 break;
             }

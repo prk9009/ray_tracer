@@ -47,12 +47,20 @@ rt::RGBColor PerlinTexture::getColor(const Point& coord) {
     return(lerp(black, white, wt));
 }
 
-rt::RGBColor PerlinTexture::getColorDX(const Point& coord) {
-    /* TODO */ NOT_IMPLEMENTED;
+RGBColor PerlinTexture::getColorDX(const Point& coord) {
+    double e = 0.001;// std::numeric_limits<double>::epsilon();
+    float x = coord.x;
+    float y = coord.y;
+    float z = coord.z;
+    return (getColor(Point(x + e, y, z)) - getColor(Point(x - e, y, z))) / (2 * e);
 }
 
-rt::RGBColor PerlinTexture::getColorDY(const Point& coord) {
-    /* TODO */ NOT_IMPLEMENTED;
+RGBColor PerlinTexture::getColorDY(const Point& coord) {
+    double e = 0.001;// std::numeric_limits<double>::epsilon();
+    float x = coord.x;
+    float y = coord.y;
+    float z = coord.z;
+    return (getColor(Point(x, y + e, z)) - getColor(Point(x, y - e, z))) / (2 * e);
 }
 
 void PerlinTexture::addOctave(float amplitude, float frequency) {

@@ -17,7 +17,6 @@ public:
     std::vector<Primitive*> unBoundPrimitives;
     BVHBuildNode* root;
     int splitMethod;
-    size_t totalNodes = 0;
     virtual BBox getBounds() const;
     virtual Intersection intersect(const Ray& ray, float previousBestDistance = FLT_MAX) const;
     virtual void rebuildIndex();
@@ -25,7 +24,7 @@ public:
     virtual void setMaterial(Material* m);
     virtual void setCoordMapper(CoordMapper* cm);
 
-    BVHBuildNode *recBuild(std::vector<BVHPrimInfo>& primitiveInfo, int start, int end, size_t* totalNodes, std::vector<Primitive*>& orderedPrimitives);
+    BVHBuildNode *recBuild(std::vector<BVHPrimInfo>& primitiveInfo, int start, int end, int* totalNodes, std::vector<Primitive*>& orderedPrimitives);
 
 
 	// Do not use this structure as your node layout:

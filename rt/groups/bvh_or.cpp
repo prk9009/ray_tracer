@@ -5,7 +5,6 @@
 #include <core/point.h>
 #include <chrono> 
 #include<unordered_map>
-
 namespace rt {
 
 BVH::BVH()
@@ -68,38 +67,6 @@ void BVH::rebuildIndex() {
     root = recBuild(primitiveInfo, 0, primitives.size(), &totalNodes, orderedPrims);
 	// swap out primitives with orderedPrims to maintin the order while doing intersect
 	primitives.swap(orderedPrims);
-	if(unBoundPrimitives.size() == 1){
-		BVHBuildNode* unBoundRootNode = new BVHBuildNode();
-		unBoundRootNode->children[0] = NULL;
-		unBoundRootNode->bbox = BBox::full();
-		unBoundRootNode->primitiveStartInd = 0;
-
-		unBoundRootNode->children[1] = root;
-		root = unBoundRootNode;
-	}
-
-	else if (unBoundPrimitives.size() > 1) {
-		BVHBuildNode* unBoundRootNode = new BVHBuildNode();
-		unBoundRootNode->children[0] = NULL;
-		unBoundRootNode->bbox = BBox::full();
-		unBoundRootNode->primitiveStartInd = 0;
-
-		BVHBuildNode* unBoundNode = new BVHBuildNode();
-		unBoundNode->children[0] = NULL;
-		unBoundNode->bbox = BBox::full();
-		unBoundNode->primitiveStartInd = 1;
-		unBoundRootNode->children[1] = unBoundNode;
-		for (int i = 2; i < unBoundPrimitives.size(); i++) {
-			BVHBuildNode* unBoundNodeL = new BVHBuildNode();
-			unBoundNodeL->children[0] = NULL;
-			unBoundNodeL->bbox = BBox::full();
-			unBoundNodeL->primitiveStartInd = i;
-			unBoundNode->children[1];
-			unBoundNode = unBoundNodeL;
-		}
-		unBoundNode->children[1] = root;
-		root = unBoundRootNode;
-	}
 	// cleaning some unwanted space
 	orderedPrims.resize(0);
 	primitiveInfo.resize(0);
@@ -325,45 +292,30 @@ Intersection BVH::intersect(const Ray& ray, float previousBestDistance) const {
 		BVHBuildNode* rootNode = intNodes.front();//top for stack
 		intNodes.pop();
 		std::pair<float,float> boxInt;
-		if (rootNode->bbox.isUnbound()) {
-			int index = rootNode->primitiveStartInd;
-			Intersection intersection = unBoundPrimitives[index]->intersect(ray, previousBestDistance);
-			float intdisthit = intersection.distance;
-			if (intersection) {
-				if (intdisthit < disthit) {
-					intersectionHit = intersection;
-					disthit = intdisthit;
-				}
-				if (disthit == FLT_MAX && intersection.solid != nullptr) intersectionHit = intersection;
-			}
-			intNodes.push(rootNode->children[1]);
-		}
-		else{
-			boxInt = rootNode->bbox.intersect(ray);
-
-			if (boxInt.second < 0) continue;
-			if (rootNode->children[0] == nullptr && rootNode->children[1] == nullptr) {
-				int start = rootNode->primitiveStartInd;
-				for (int i = start; i < start + rootNode->nPrims;i++) {
-					Intersection intersection = primitives[i]->intersect(ray, previousBestDistance);
-					intdisthit = intersection.distance;
-					if (intersection) {
-						if (intdisthit < disthit) {
-							intersectionHit = intersection;
-							disthit = intdisthit;
-						}
+		
+		boxInt = rootNode->bbox.intersect(ray);
+		if (boxInt.second < 0) continue;
+		if (rootNode->children[0] == nullptr && rootNode->children[1] == nullptr) {
+			int start = rootNode->primitiveStartInd;
+			for (int i = start; i < start + rootNode->nPrims;i++) {
+				Intersection intersection = primitives[i]->intersect(ray, previousBestDistance);
+				intdisthit = intersection.distance;
+				if (intersection) {
+					if (intdisthit < disthit) {
+						intersectionHit = intersection;
+						disthit = intdisthit;
 					}
 				}
 			}
-			else{
-				for(int i = 0;i<2;i++)
-					intNodes.push(rootNode->children[i]);
-			}
+		}
+		else{
+			for(int i = 0;i<2;i++)
+				intNodes.push(rootNode->children[i]);
 		}
 	}
-	//intNodes = std::queue<BVHBuildNode* >();
+	intNodes = std::queue<BVHBuildNode* >();
 	//intNodes = std::stack<BVHBuildNode* >();
-	/*for (auto primitive : this->unBoundPrimitives) {
+	for (auto primitive : this->unBoundPrimitives) {
 		Intersection intersection = primitive->intersect(ray, previousBestDistance);
 		float intdisthit = intersection.distance;
 		if (intersection) {
@@ -373,7 +325,7 @@ Intersection BVH::intersect(const Ray& ray, float previousBestDistance) const {
 			}
 			if (disthit == FLT_MAX && intersection.solid != nullptr) intersectionHit = intersection;
 		}
-	}*/
+	}
 	if (disthit == FLT_MAX && intersectionHit.solid != nullptr) return intersectionHit;
 	if (disthit == FLT_MAX && intersectionHit.solid == nullptr) return Intersection::failure();
 	else if (disthit < previousBestDistance) return intersectionHit;
@@ -383,11 +335,10 @@ Intersection BVH::intersect(const Ray& ray, float previousBestDistance) const {
 
 void BVH::add(Primitive* p) {
 
-	if (p->getBounds().isUnbound()) { unBoundPrimitives.push_back(p); 
-	}
+	if (p->getBounds().isUnbound()) unBoundPrimitives.push_back(p);
 	else {
 		primitives.push_back(p);
-		//BBox b = p->getBounds();
+		BBox b = p->getBounds();
 		//if(std::fabs(b.min.x - b.max.x)<0.0001)
 		//std::cout << b.min.x << ' ' << b.max.x << ' ' << b.min.y << ' ' << b.max.y << ' ' << b.min.z << ' ' << b.max.z << std::endl;
 	}
@@ -407,14 +358,14 @@ void BVH::serialize(BVH::Output& output) {
 	// To implement this function:
 	std::unordered_map<BVHBuildNode*, size_t> indMap;
 	size_t ct = 0;
-	// - Call output.setNodeCount() with the number of nodes in the BVH
+    // - Call output.setNodeCount() with the number of nodes in the BVH
 	output.setNodeCount(totalNodes);
 	// - Set the root node index using output.setRootId()
 	output.setRootId(0);
 	//SerializedNode* rootSerial = new SerializedNode();
 	//output.setRootId(0);
-	// - Write each and every one of the BVH nodes to the output using output.writeNode()
-
+    // - Write each and every one of the BVH nodes to the output using output.writeNode()
+	
 
 	std::stack<BVHBuildNode*> s;
 	BVHBuildNode* currNode = root;
@@ -448,7 +399,7 @@ void BVH::serialize(BVH::Output& output) {
 				serNode->isLeaf = true;
 				serNode->primitives = sPrimitives;
 				output.writeNode(indMap[currNode], *serNode);
-
+				
 			}
 			else {
 				serNode->isLeaf = false;
@@ -465,15 +416,17 @@ void BVH::serialize(BVH::Output& output) {
 			s.pop();
 		}
 	}
-	//TODO  NOT_IMPLEMENTED;
+     //TODO  NOT_IMPLEMENTED;
 }
-
 void BVH::deserialize(BVH::Input& input) {
-	// To implement this function:
-	// - Allocate and initialize input.getNodeCount() nodes
-	/* TODO */
-	// - Use the node at index input.getRootId() as the root node
-	/* TODO */ NOT_IMPLEMENTED;
+    // To implement this function:
+    // - Allocate and initialize input.getNodeCount() nodes
+	size_t tNodes = input.getNodeCount();
+    /* TODO */
+    // - Fill your nodes with input.readNode(index)
+    /* TODO */
+    // - Use the node at index input.getRootId() as the root node
+   /* TODO */ NOT_IMPLEMENTED;
 }
 
 }
