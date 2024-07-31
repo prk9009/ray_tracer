@@ -3,7 +3,7 @@ Rendering Competition at University of Saarland for the course Computer Graphics
 More details at this ***[Link](https://graphics.cg.uni-saarland.de/courses/cg1-2021/RC/group8/)***
 This is the rendered image:<br/>
 
-<img src="cg_saar.png" width="400"/>
+<img src="final_imgs/scene_final_high_res.png" width="400"/>
 
 ## Running the renderer
 Before running the rendere you need to download the models from this ***[link](https://drive.google.com/file/d/1JfP-z_eUBPKzjU8YpRU7TIa_PoNC20xf/view?usp=sharing)***. For this, just run the script<br/>
